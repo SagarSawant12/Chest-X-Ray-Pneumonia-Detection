@@ -39,16 +39,14 @@ st.markdown(f"""
 .blood-cell {{
     position: fixed;
     border-radius: 50%;
-    /* The base red color with a highlight */
     background: radial-gradient(circle at 30% 30%, #ff5e5e, #800000);
-    /* The "Inset" shadow creates the biconcave (donut) dip in the center */
     box-shadow: 
-        inset 10px 10px 20px rgba(0,0,0,0.5), /* Deep dark center */
-        inset -5px -5px 15px rgba(255,255,255,0.2), /* Subtle rim reflection */
-        5px 5px 15px rgba(0,0,0,0.3); /* Drop shadow for depth */
-    opacity: 0.8;
-    z-index: 0; /* Behind the content */
-    pointer-events: none; /* Allow clicking through them */
+        inset 10px 10px 20px rgba(0,0,0,0.5),
+        inset -5px -5px 15px rgba(255,255,255,0.2),
+        5px 5px 15px rgba(0,0,0,0.3);
+    opacity: 0.35;
+    z-index: 1 !important; /* Stays below the block-container (z-index: 10) */
+    pointer-events: none;
     animation: rushDiagonal linear infinite;
 }}
 
@@ -67,16 +65,16 @@ st.markdown(f"""
     }}
 }}
 
-/* 5. "GLASSMORPHISM CONTAINER" - my fav*/
+/* 5. "GLASSMORPHISM CONTAINER" */
 .block-container {{
-    position: relative;
-    z-index: 2; /* Sits above the blood cells */
-    background: rgba(0, 0, 0, 0.6); /* Darker glass for better contrast */
-    backdrop-filter: blur(8px); /* Blur the cells passing behind */
+    position: relative !important;
+    z-index: 10 !important; /* Forces all cards, titles, and images in front of background elements */
+    background: rgba(0, 0, 0, 0.7) !important;
+    backdrop-filter: blur(8px);
     border-radius: 20px;
-    padding: 3rem;
-    border: 1px solid rgba(139, 0, 0, 0.3); /* Subtle red border */
-    max_width: 800px;
+    padding: 2.5rem 3rem !important;
+    border: 1px solid rgba(255, 77, 77, 0.25) !important;
+    max-width: 950px;
     margin: auto;
 }}
 
@@ -204,30 +202,68 @@ if uploaded_file:
 
     # grad-cam 
     if show_gradcam:
-        heatmap = get_gradcam_heatmap(
+        raw_heatmap = get_gradcam_heatmap(
             model=model,
             img_array=img_array,
             layer_name=LAST_CONV_LAYER
         )
 
-        fig, ax = plt.subplots(1, 2, figsize=(10, 4))
+        # Smoothly resize heatmap to match original uploaded image resolution
+        heatmap_tensor = np.expand_dims(raw_heatmap, axis=-1)
+        heatmap_resized = tf.image.resize(
+            heatmap_tensor, 
+            (image.size[1], image.size[0]), 
+            method='bilinear'
+        ).numpy().squeeze()
 
-        # Transparent bg
-        fig.patch.set_alpha(0.0)
+        # Display side-by-side with clear, bold titles
+        col_img1, col_img2 = st.columns(2)
 
-        ax[0].imshow(image)
-        ax[0].set_title("Original X-ray", color='white')
-        ax[0].axis("off")
+        with col_img1:
+            st.markdown(
+                """
+                <div style='text-align: center; margin-bottom: 12px;'>
+                    <h3 style='color: #ffffff !important; font-size: 1.35rem; font-weight: 700; margin: 0; text-shadow: 0 2px 8px rgba(0,0,0,0.9);'>
+                        Original Radiograph
+                    </h3>
+                </div>
+                """, 
+                unsafe_allow_html=True
+            )
+            st.image(image, use_container_width=True)
 
-        ax[1].imshow(image)
-        ax[1].imshow(heatmap, cmap="jet", alpha=0.4)
-        ax[1].set_title("Grad-CAM Heatmap", color='white')
-        ax[1].axis("off")
+        with col_img2:
+            st.markdown(
+                """
+                <div style='text-align: center; margin-bottom: 12px;'>
+                    <h3 style='color: #ffffff !important; font-size: 1.35rem; font-weight: 700; margin: 0; text-shadow: 0 2px 8px rgba(0,0,0,0.9);'>
+                        Diagnostic Grad-CAM Overlay
+                    </h3>
+                </div>
+                """, 
+                unsafe_allow_html=True
+            )
+            
+            fig, ax = plt.subplots(figsize=(6, 6), dpi=150)
+            fig.patch.set_alpha(0.0)
+            ax.patch.set_alpha(0.0)
 
-        st.pyplot(fig)
+            # 1. Base radiograph
+            ax.imshow(image)
+            
+            # 2. Smooth bilinear heatmap overlay
+            ax.imshow(
+                heatmap_resized, 
+                cmap="jet", 
+                alpha=0.45, 
+                interpolation="bilinear"
+            )
+            ax.axis("off")
+            plt.tight_layout(pad=0)
+
+            st.pyplot(fig, use_container_width=True)
+            plt.close(fig)
 
     else:
         st.image(image, caption="Uploaded Chest X-ray", use_container_width=True)
-
-st.markdown("---")
 st.caption("🔓 Free public Streamlit Cloud deployment ready")
